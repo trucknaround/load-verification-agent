@@ -179,7 +179,7 @@ async function verifyFMCSA(mcNumber: string): Promise<{
   }
 
   try {
-    const url = `${CONFIG.FMCSA_API_BASE}/${mcNumber}?webKey=${apiKey}`;
+   const url = `${CONFIG.FMCSA_API_BASE}/${mcNumber}?webKey=${apiKey!}`;
     
     const response = await axios.get(url, {
       timeout: CONFIG.FMCSA_TIMEOUT_MS,
