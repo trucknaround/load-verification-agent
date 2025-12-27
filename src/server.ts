@@ -23,20 +23,43 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Authentication middleware
+// Authentication middleware - FIXED
 function authenticateApiKey(req: Request, res: Response, next: NextFunction) {
-  const apiKey = req.headers['x-api-key'];
-  const validApiKey = process.env.API_KEY;
+  const receivedKey = req.headers['x-api-key'] as string;
+  const expectedKey = process.env.API_KEY;
 
-  if (!validApiKey && process.env.NODE_ENV === 'development') {
-    console.warn('⚠️  API_KEY not set - skipping authentication (development only)');
-    return next();
+  // Debug logging
+  console.log('Auth Check:');
+  console.log('- Received key:', receivedKey ? `${receivedKey.substring(0, 10)}...` : 'MISSING');
+  console.log('- Expected key:', expectedKey ? `${expectedKey.substring(0, 10)}...` : 'NOT SET');
+  console.log('- Keys match:', receivedKey === expectedKey);
+
+  if (!expectedKey) {
+    console.error('ERROR: API_KEY environment variable is not set!');
+    return res.status(500).json({
+      error: 'Configuration error',
+      message: 'API key not configured on server',
+    });
   }
 
-  if (!apiKey || apiKey !== validApiKey) {
+  if (!receivedKey) {
     return res.status(401).json({
       error: 'Unauthorized',
-      message: 'Invalid or missing API key',
+      message: 'Missing X-API-Key header',
+    });
+  }
+
+  // Trim whitespace and compare
+  const cleanReceivedKey = receivedKey.trim();
+  const cleanExpectedKey = expectedKey.trim();
+
+  if (cleanReceivedKey !== cleanExpectedKey) {
+    console.error('Key mismatch!');
+    console.error('Received length:', cleanReceivedKey.length);
+    console.error('Expected length:', cleanExpectedKey.length);
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid API key',
     });
   }
 
@@ -50,6 +73,18 @@ app.get('/health', (req: Request, res: Response) => {
     service: 'load-verification-agent',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
+    api_key_configured: !!process.env.API_KEY,
+  });
+});
+
+// Debug endpoint - REMOVE THIS AFTER FIXING
+app.get('/debug/env', (req: Request, res: Response) => {
+  res.json({
+    API_KEY_SET: !!process.env.API_KEY,
+    API_KEY_LENGTH: process.env.API_KEY?.length || 0,
+    API_KEY_FIRST_10: process.env.API_KEY?.substring(0, 10) || 'NOT SET',
+    NODE_ENV: process.env.NODE_ENV,
+    FMCSA_KEY_SET: !!process.env.FMCSA_API_KEY,
   });
 });
 
@@ -184,11 +219,7 @@ if (require.main === module) {
 ║  Status:     RUNNING                                           ║
 ║  Port:       ${PORT}                                              ║
 ║  Env:        ${process.env.NODE_ENV || 'development'}                                   ║
-║                                                                ║
-║  Endpoints:                                                    ║
-║    GET  /health              - Health check                    ║
-║    POST /api/verify          - Verify single load             ║
-║    POST /api/verify/batch    - Verify multiple loads          ║
+║  API Key:    ${process.env.API_KEY ? 'SET' : 'NOT SET'}                                     ║
 ║                                                                ║
 ╚════════════════════════════════════════════════════════════════╝
     `);
